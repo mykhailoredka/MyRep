@@ -121,43 +121,71 @@ module "db" {
 
 #######################################Autoscaling Module#########################################
 
-module "asg" {
-  source  = "terraform-aws-modules/autoscaling/aws"
-  version = "~> 4.0"
+# module "asg" {
+#   source  = "terraform-aws-modules/autoscaling/aws"
+#   version = "~> 4.0"
+#   name = "autoscaling"
+#   min_size                  = 1
+#   max_size                  = 2
+#   desired_capacity          = 1
+#   wait_for_capacity_timeout = 0
+#   health_check_type         = "EC2"
+#   vpc_zone_identifier       = module.vpc.public_subnets
 
-  name = "autoscaling"
+#   description = "A security group"
+#   # vpc_id      = module.vpc.vpc_id
+#   security_groups = [ aws_security_group.allow_http.id ]
+#   user_data = local.user_data
 
+#   lt_name                = "lt_asg"
+#   update_default_version = true
+
+#   use_lt    = true
+#   create_lt = true
+
+#   image_id          = "ami-0f19d220602031aed"
+#   instance_type     = "t2.micro"
+#   ebs_optimized     = true
+#   enable_monitoring = true
+#   capacity_reservation_specification = {
+#     capacity_reservation_preference = "open"
+#   }
+
+#   placement = {
+#     availability_zone = local.region
+#   }
+# }
+
+resource "aws_launch_template" "mylt" {
+  name_prefix   = "pref"
+  image_id      = "ami-0f19d220602031aed"
+  instance_type = "t2.micro"
+  # user_data = local.user_data
+  # security_groups = aws_security_group.allow_http.id
+}
+
+resource "aws_autoscaling_group" "asg" {
+  name                      = "asg-terraform-test1"
+  max_size                  = 3
   min_size                  = 1
-  max_size                  = 2
   desired_capacity          = 1
-  wait_for_capacity_timeout = 0
-  health_check_type         = "EC2"
+  health_check_grace_period = 300
+  health_check_type         = "ELB"
+
+  force_delete              = true
   vpc_zone_identifier       = module.vpc.public_subnets
 
-  description = "A security group"
-  # vpc_id      = module.vpc.vpc_id
-  security_groups = [ aws_security_group.allow_http.id ]
-  user_data = local.user_data
-
- 
-
-  lt_name                = "lt_asg"
-  update_default_version = true
-
-  use_lt    = true
-  create_lt = true
-
-  image_id          = "ami-0f19d220602031aed"
-  instance_type     = "t2.micro"
-  ebs_optimized     = true
-  enable_monitoring = true
-  capacity_reservation_specification = {
-    capacity_reservation_preference = "open"
+  initial_lifecycle_hook {
+    name                 = "lifecycle"
+    default_result       = "CONTINUE"
+    heartbeat_timeout    = 2000
+    lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
   }
-
-  placement = {
-    availability_zone = local.region
+    launch_template {
+    id      = aws_launch_template.mylt.id
+    version = "$Latest"
   }
-  
-
+  timeouts {
+    delete = "15m"
+  }
 }
